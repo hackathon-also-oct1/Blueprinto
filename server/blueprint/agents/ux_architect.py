@@ -43,23 +43,21 @@ class UXArchitect(AgentProcessor):
     service = "Azure OpenAI · page categories"
 
     async def run(self, run: BlueprintRun) -> str:
-        assert run.spec is not None
+        # Runs alongside the Requirements Analyst, so it works from the raw requirement
+        # and the domain, not from the analyst's spec.
         domain = (run.domain or classify_domain(run.request.requirement)).domain
         if self.llm.mock:
             await self.mock_pause()
             flow = UXFlow(screens=category_screens(domain))
         else:
-            features = "\n".join(
-                f"- [{f.priority}] {f.name}: {f.description}" for f in run.spec.features
-            )
             user = (
-                f"Summary: {run.spec.summary}\nPersonas: {', '.join(run.spec.personas)}\n"
-                f"Domain: {domain}\nFeatures:\n{features}"
+                f"Domain: {domain}\nPlatform: {run.request.platform}\n"
+                f"Requirement:\n{run.request.requirement}"
             )
             flow, tokens = await self.llm.structured(
                 SYSTEM.format(categories=categories_prompt()), user, UXFlow
             )
-            run.tokens += tokens
+            self.count_tokens(run, tokens)
             for s in flow.screens:  # keep ids safe for Miro/Figma names and the client
                 s.id = re.sub(r"[^a-z0-9-]", "-", s.id.lower()).strip("-") or "screen"
             flow.screens, dropped, added = keep_categorised(flow.screens, domain)

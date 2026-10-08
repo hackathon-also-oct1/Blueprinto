@@ -158,7 +158,7 @@ class Estimator(AgentProcessor):
             )
             user = f"Platform: {run.request.platform}\nScreens:\n{screens}"
             review, tokens = await self.llm.structured(SYSTEM, user, ComplexityReview)
-            run.tokens += tokens
+            self.count_tokens(run, tokens)
             complexity = {i.screen_id: i.complexity for i in review.screens}
             risks = review.risks
 

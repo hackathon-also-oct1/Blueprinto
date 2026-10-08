@@ -32,11 +32,20 @@ class AgentProcessor(FrameProcessor):
     def __init__(self, llm: AgentLLM, **kwargs):
         super().__init__(name=self.title, **kwargs)
         self.llm = llm
+        self._tokens = 0
+        # Set by ParallelAgents: messages then go out through the stage, because an
+        # agent inside a stage is not linked into the pipeline itself.
+        self._sink: FrameProcessor | None = None
 
     # -- messaging helpers -------------------------------------------------
 
     async def emit(self, data: dict[str, Any]) -> None:
-        await self.push_frame(RTVIServerMessageFrame(data=data))
+        await (self._sink or self).push_frame(RTVIServerMessageFrame(data=data))
+
+    def count_tokens(self, run: BlueprintRun, tokens: int) -> None:
+        """Add model tokens to the run and to this agent's own count."""
+        run.tokens += tokens
+        self._tokens += tokens
 
     async def log(self, run: BlueprintRun, message: str) -> None:
         logger.info(f"[{run.run_id}] {self.title}: {message}")
@@ -74,10 +83,14 @@ class AgentProcessor(FrameProcessor):
         await self.push_frame(frame, direction)
 
     async def _work(self, frame: BlueprintRunFrame) -> None:
-        run = frame.run
+        await self.execute(frame.run)
+        await self.push_frame(frame)
+
+    async def execute(self, run: BlueprintRun) -> None:
+        """Run this agent's part and report its status, without handing the run on."""
         await self.status(run, "working")
         started = time.monotonic()
-        tokens_before = run.tokens
+        self._tokens = 0
         try:
             note = await self.run(run)
             await self.status(
@@ -85,15 +98,38 @@ class AgentProcessor(FrameProcessor):
                 "done",
                 note=note,
                 duration_ms=int((time.monotonic() - started) * 1000),
-                tokens=run.tokens - tokens_before,
+                tokens=self._tokens,
             )
         except Exception as e:
             logger.exception(f"{self.title} failed")
             run.error = f"{self.title}: {e}"
             await self.status(run, "error", note=str(e))
             await self.emit({"type": "run_error", "run_id": run.run_id, "error": run.error})
-        await self.push_frame(frame)
 
     async def run(self, run: BlueprintRun) -> str:
         """Do this agent's work. Return a one-line note for the UI."""
         raise NotImplementedError
+
+
+class ParallelAgents(FrameProcessor):
+    """Runs agents that do not depend on each other at the same time on one run,
+    then hands the run on once all of them are done."""
+
+    def __init__(self, agents: list[AgentProcessor], **kwargs):
+        super().__init__(name=" + ".join(a.title for a in agents), **kwargs)
+        self.agents = agents
+        for agent in agents:
+            agent._sink = self
+
+    async def process_frame(self, frame: Frame, direction: FrameDirection):
+        await super().process_frame(frame, direction)
+
+        if isinstance(frame, BlueprintRunFrame) and frame.run.error is None:
+            self.create_task(self._work(frame), f"{self.name}::run")
+            return
+
+        await self.push_frame(frame, direction)
+
+    async def _work(self, frame: BlueprintRunFrame) -> None:
+        await asyncio.gather(*(agent.execute(frame.run) for agent in self.agents))
+        await self.push_frame(frame)

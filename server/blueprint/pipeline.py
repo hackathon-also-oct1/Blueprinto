@@ -1,7 +1,10 @@
 """Assembles the agent chain that sits inside the Pipecat pipeline.
 
-    Orchestrator → Domain Classifier → Requirements Analyst → UX Architect
+    Orchestrator → Domain Classifier → [Requirements Analyst ∥ UX Architect]
                  → Wireframe Builder → Estimator → Publisher → Narrator
+
+The Requirements Analyst and the UX Architect run at the same time: the flow is
+built from the requirement and its domain, so it does not wait for the spec.
 
 Each arrow is a Pipecat frame hand-off: the ``BlueprintRunFrame`` moves down the
 pipeline, and every agent streams its status to the browser over RTVI.
@@ -21,6 +24,7 @@ from blueprint.agents import (
     UXArchitect,
     WireframeBuilder,
 )
+from blueprint.agents.base import ParallelAgents
 from blueprint.azure_llm import AgentLLM
 from blueprint.storage import RunStore
 
@@ -47,8 +51,11 @@ def build_agent_chain(
     ]
     roster += [{"id": a.agent_id, "title": a.title, "service": a.service} for a in agents]
 
+    domain, analyst, ux, *rest = agents
     return [
         Orchestrator(roster, mock=llm.mock),
-        *agents,
+        domain,
+        ParallelAgents([analyst, ux]),
+        *rest,
         Narrator(store, speak=speak, converse=converse),
     ]
