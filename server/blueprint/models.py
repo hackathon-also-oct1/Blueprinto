@@ -119,6 +119,21 @@ class UXFlow(BaseModel):
     screens: list[Screen]
 
 
+class PagePlan(BaseModel):
+    """What the UX Architect's model decides per page; the rest comes from the
+    category recipe (blueprint/references.py)."""
+
+    # A plain string so an unknown category is dropped, not a validation retry.
+    category: str
+    name: str
+    purpose: str
+    persona: str = ""
+
+
+class SitePlan(BaseModel):
+    pages: list[PagePlan]
+
+
 # ---- Wireframe Builder ----------------------------------------------------
 
 
