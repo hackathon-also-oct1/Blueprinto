@@ -35,8 +35,19 @@ class AgentLLM:
             self._client = AsyncOpenAI(base_url=base + "/", api_key=api_key)
         logger.info(f"AgentLLM ready (mock={self.mock}, deployment={self.model})")
 
-    async def structured(self, system: str, user: str, schema: type[T]) -> tuple[T, int]:
-        """Ask the model for JSON matching ``schema``. Returns (object, tokens used)."""
+    async def structured(
+        self,
+        system: str,
+        user: str,
+        schema: type[T],
+        reasoning_effort: str | None = None,
+    ) -> tuple[T, int]:
+        """Ask the model for JSON matching ``schema``. Returns (object, tokens used).
+
+        ``reasoning_effort`` ("low" or "medium" on the current deployment) trades
+        thinking time for speed; leave it None to use the model's default.
+        """
+        extra = {"reasoning_effort": reasoning_effort} if reasoning_effort else {}
         if self._client is None:
             raise RuntimeError("AgentLLM is in mock mode")
 
@@ -57,6 +68,7 @@ class AgentLLM:
                 messages=messages,  # type: ignore[arg-type]
                 # No temperature: reasoning models only accept the default.
                 response_format={"type": "json_object"},
+                **extra,
             )
             tokens += resp.usage.total_tokens if resp.usage else 0
             content = resp.choices[0].message.content or "{}"

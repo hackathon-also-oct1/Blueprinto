@@ -55,8 +55,8 @@ export function Studio({ connect, disconnect, error }: {
     <div className="studio">
       <header className="top">
         <div>
-          <h1>Blueprint Agent Studio</h1>
-          <p>Tell the presenter what you want to build, or type it. Six agents in a Pipecat pipeline on Microsoft Azure turn it into wireframes, a budget, a timeline and a team plan, then publish the flow to Miro or Figma.</p>
+          <h1>Blueprinto</h1>
+          <p>Describe the website you have in mind, by voice or by typing. Blueprinto sketches the pages for you, estimates the budget, timeline and team you need, and can share the result to Miro or Figma.</p>
         </div>
         <div className="row center">
           {state.session?.mock && <span className="badge warn">Mock mode · no Azure OpenAI key</span>}

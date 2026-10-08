@@ -65,6 +65,10 @@ async def test_full_run_and_publish(tmp_path):
     ]
     assert all(f["screenshot"] for f in result["layout"]["frames"])
     assert result["estimate"]["total"] > 0
+    # The Requirements Analyst and the UX Architect run at the same time.
+    steps = [(m["agent"], m["status"]) for m in msgs if m["type"] == "agent_status"]
+    started = max(steps.index(("req", "working")), steps.index(("ux", "working")))
+    assert started < min(steps.index(("req", "done")), steps.index(("ux", "done")))
     done = {m["agent"] for m in msgs if m["type"] == "agent_status" and m["status"] == "done"}
     assert done == {"orch", "dom", "req", "ux", "wf", "est", "pub"}
 
