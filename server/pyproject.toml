@@ -1,0 +1,39 @@
+[project]
+name = "blueprint-studio"
+version = "0.1.0"
+description = "Multi-agent requirement → wireframe → estimate pipeline on Pipecat and Microsoft Azure"
+requires-python = ">=3.11"
+dependencies = [
+    "pipecat-ai[azure,runner,webrtc]>=1.12.0",
+    "httpx>=0.27",
+    "pydantic>=2.7",
+    "pyyaml>=6",
+    "pipecat-slng>=0.6.0",
+]
+
+[project.optional-dependencies]
+# Persist runs in Azure Cosmos DB (set COSMOS_ENDPOINT)
+cosmos = ["azure-cosmos>=4.7", "azure-identity>=1.17"]
+# Anam video avatar for the narrator (set AVATAR_PROVIDER=anam)
+anam = ["pipecat-anam>=0.1.0"]
+
+[dependency-groups]
+dev = [
+    "pyright>=1.1.404,<2",
+    "ruff>=0.12.11,<1",
+    "pytest>=8",
+    "pytest-asyncio>=0.24",
+]
+
+[tool.ruff]
+line-length = 100
+[tool.ruff.lint]
+select = ["I", "UP"]
+
+[tool.pytest.ini_options]
+asyncio_mode = "auto"
+testpaths = ["tests"]
+pythonpath = ["."]
+
+[tool.uv]
+package = false

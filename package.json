@@ -1,0 +1,13 @@
+{
+  "name": "blueprint-studio-dev",
+  "private": true,
+  "scripts": {
+    "setup": "npm install && npm --prefix client install && uv sync --project server --all-extras",
+    "dev": "concurrently -k -n server,client -c blue,green \"npm:dev:server\" \"npm:dev:client\"",
+    "dev:server": "cd server && uv run bot.py",
+    "dev:client": "npm --prefix client run dev"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.0"
+  }
+}
