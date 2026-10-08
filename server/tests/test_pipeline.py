@@ -13,9 +13,9 @@ from pipecat.tests.utils import SleepFrame, run_test
 os.environ["BLUEPRINT_MOCK"] = "1"
 
 from blueprint.agents.estimator import compute_estimate  # noqa: E402
-from blueprint.agents.ux_architect import keep_categorised  # noqa: E402
+from blueprint.agents.ux_architect import apply_plan  # noqa: E402
 from blueprint.azure_llm import AgentLLM  # noqa: E402
-from blueprint.models import BlueprintRun, RunRequest, Screen, UXFlow  # noqa: E402
+from blueprint.models import BlueprintRun, PagePlan, RunRequest, UXFlow  # noqa: E402
 from blueprint.pipeline import build_agent_chain  # noqa: E402
 from blueprint.references import category_screens  # noqa: E402
 from blueprint.storage import RunStore  # noqa: E402
@@ -99,21 +99,23 @@ def test_estimate_scales_with_platform():
 
 
 def test_flow_keeps_only_page_categories():
-    llm_screens = [
-        Screen(id="sign-in", name="Sign in", purpose="", blocks=["input"]),
-        Screen(id="rooms", name="Rooms", purpose="", blocks=["cards"], category="services"),
-        Screen(id="home", name="Home", purpose="", blocks=["image"], category="home"),
-        Screen(id="suites", name="Suites", purpose="", blocks=["cards"], category="services"),
+    plan = [
+        PagePlan(category="login", name="Sign in", purpose=""),
+        PagePlan(category="services", name="Rooms", purpose="All rooms", persona="guest"),
+        PagePlan(category="home", name="Welcome", purpose="Hero"),
+        PagePlan(category="services", name="Suites", purpose=""),
     ]
-    screens, dropped, added = keep_categorised(llm_screens, "hospitality")
-    # Every category once, in order: the model's pages kept, the missing ones added.
-    assert [s.id for s in screens] == [
+    screens, dropped, added = apply_plan(plan, "hospitality")
+    # Every category once, in order: the model's names applied, the missing ones added.
+    assert [s.category for s in screens] == [
         "home",
         "about",
-        "rooms",
-        "service-detail",
+        "services",
+        "service_detail",
         "contact",
-        "error-404",
+        "error_404",
     ]
+    assert [s.name for s in screens][:3] == ["Welcome", "About us", "Rooms"]
+    assert screens[2].persona == "guest" and screens[2].blocks  # blocks from the recipe
     assert dropped == ["Sign in", "Suites"]
     assert added == ["About us", "Room detail", "Contact", "Error 404"]

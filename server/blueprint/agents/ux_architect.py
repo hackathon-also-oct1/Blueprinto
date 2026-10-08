@@ -1,40 +1,36 @@
-import re
-
 from blueprint.agents.base import AgentProcessor
 from blueprint.domain_classifier import classify_domain
-from blueprint.models import BlueprintRun, Screen, UXFlow
-from blueprint.references import CATEGORY_RECIPES, categories_prompt, category_screens
+from blueprint.models import BlueprintRun, PagePlan, Screen, SitePlan, UXFlow
+from blueprint.references import categories_prompt, category_screens
 
-SYSTEM = """You are a UX architect. Design the page flow for the website below.
+SYSTEM = """You are a UX architect. Plan the pages of the website below.
 Return exactly one page for EACH of these page categories, all of them:
 {categories}
-Leave out everything else (sign in, payment, dashboards, …): those pages are not
-part of this flow.
-Return the pages in the order a visitor meets them. For each page give a short
-kebab-case id, a name that fits the product (e.g. "Rooms & suites" for a hotel's
-services page), its purpose, the persona who uses it, the ids of the pages it links
-to, its category, and an ordered list of 3 to 7 wireframe blocks taken ONLY from:
-header, title, text, input, button, image, cards, list, map."""
+Leave out everything else (sign in, payment, dashboards, …).
+For each page give its category, a name that fits the product (e.g. "Rooms & suites"
+for a hotel's services page), its purpose in at most 12 words, and the persona who
+uses it as a role name only (e.g. "prospective client").
+Output compact JSON on one line, without indentation."""
 
 
-def keep_categorised(
-    screens: list[Screen], domain: str
-) -> tuple[list[Screen], list[str], list[str]]:
-    """One screen per category, in category order: the model's where it gave one, the
-    default otherwise. Returns (screens, names dropped, names added)."""
-    by_cat: dict[str, Screen] = {}
+def apply_plan(pages: list[PagePlan], domain: str) -> tuple[list[Screen], list[str], list[str]]:
+    """Put the model's names, purposes and personas onto the default category flow
+    (ids, blocks and links come from the category recipes). One page per category:
+    an unknown or repeated category is dropped, a missing one keeps its default.
+    Returns (screens, names dropped, names added)."""
+    screens = category_screens(domain)
+    by_cat = {s.category: s for s in screens}
+    planned: set[str] = set()
     dropped: list[str] = []
-    for s in screens:
-        if s.category is None or s.category in by_cat:
-            dropped.append(s.name)
-        else:
-            by_cat[s.category] = s
-    added: list[str] = []
-    for default in category_screens(domain):
-        if default.category not in by_cat:
-            by_cat[default.category] = default
-            added.append(default.name)
-    return [by_cat[c] for c in CATEGORY_RECIPES], dropped, added
+    for page in pages:
+        if page.category not in by_cat or page.category in planned:
+            dropped.append(page.name)
+            continue
+        planned.add(page.category)
+        screen = by_cat[page.category]
+        screen.name, screen.purpose, screen.persona = page.name, page.purpose, page.persona
+    added = [s.name for s in screens if s.category not in planned]
+    return screens, dropped, added
 
 
 class UXArchitect(AgentProcessor):
@@ -54,15 +50,21 @@ class UXArchitect(AgentProcessor):
                 f"Domain: {domain}\nPlatform: {run.request.platform}\n"
                 f"Requirement:\n{run.request.requirement}"
             )
-            flow, tokens = await self.llm.structured(
-                SYSTEM.format(categories=categories_prompt()), user, UXFlow
+            # The model only names the pages; short output and low effort keep this
+            # quick (measured ~11 s -> ~4 s on gpt-6-astra).
+            plan, tokens = await self.llm.structured(
+                SYSTEM.format(categories=categories_prompt()),
+                user,
+                SitePlan,
+                reasoning_effort="low",
             )
             self.count_tokens(run, tokens)
-            for s in flow.screens:  # keep ids safe for Miro/Figma names and the client
-                s.id = re.sub(r"[^a-z0-9-]", "-", s.id.lower()).strip("-") or "screen"
-            flow.screens, dropped, added = keep_categorised(flow.screens, domain)
+            screens, dropped, added = apply_plan(plan.pages, domain)
+            flow = UXFlow(screens=screens)
             if dropped:
-                await self.log(run, f"Left out (no page category): {', '.join(dropped)}")
+                await self.log(
+                    run, f"Left out (unknown or repeated category): {', '.join(dropped)}"
+                )
             if added:
                 await self.log(run, f"Added missing pages: {', '.join(added)}")
         run.flow = flow
