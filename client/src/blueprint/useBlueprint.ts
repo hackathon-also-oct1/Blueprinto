@@ -18,6 +18,7 @@ import type {
 /** Shown before the first run so the agent view is never empty. */
 export const DEFAULT_AGENTS: AgentInfo[] = [
   { id: 'orch', title: 'Orchestrator', service: 'Pipecat pipeline · Azure Container Apps' },
+  { id: 'dom', title: 'Domain Classifier', service: 'Rules engine · weighted keywords' },
   { id: 'req', title: 'Requirements Analyst', service: 'Azure OpenAI · structured output' },
   { id: 'ux', title: 'UX Architect', service: 'Azure OpenAI · pattern library' },
   { id: 'wf', title: 'Wireframe Builder', service: 'Layout engine · 390×844 / 1280×800 frames' },

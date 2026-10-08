@@ -22,6 +22,7 @@ from blueprint.models import (
     RoleLine,
     ScreenEstimate,
 )
+from blueprint.references import CATEGORY_RECIPES
 
 PLATFORM_FE_FACTOR = {"web": 1.0, "mobile": 1.2, "both": 1.8}
 FE_BASELINE = 6  # design system, app shell, routing
@@ -54,7 +55,11 @@ def compute_estimate(
 
     screens: list[ScreenEstimate] = []
     for s in run.flow.screens:
-        c = complexity.get(s.id) or PATTERNS.get(s.id, {}).get("complexity", "M")
+        c = (
+            complexity.get(s.id)
+            or (CATEGORY_RECIPES[s.category]["complexity"] if s.category else None)
+            or PATTERNS.get(s.id, {}).get("complexity", "M")
+        )
         fe, be = EFFORT[c]
         screens.append(
             ScreenEstimate(screen_id=s.id, complexity=c, fe_days=round(fe * factor, 1), be_days=be)

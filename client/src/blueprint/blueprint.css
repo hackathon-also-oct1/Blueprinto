@@ -104,6 +104,8 @@ details summary { cursor: pointer; font-size: 13px; color: var(--muted); }
 .wf-frame { position: relative; border: 2px solid var(--wire); background: var(--wire-bg); overflow: hidden; }
 .wf-frame.wf-mobile { border-radius: 16px; }
 .wf-frame.wf-desktop { border-radius: 6px; }
+.wf-shot { display: block; }
+.wf-shot img { display: block; width: 100%; height: auto; }
 .wf { position: absolute; border: 1.5px solid var(--wire); border-radius: 3px; overflow: hidden; }
 .wf-header, .wf-tabbar { border-radius: 0; border-width: 0 0 1.5px; background: var(--wire); }
 .wf-tabbar { border-width: 1.5px 0 0; background: transparent; }

@@ -7,6 +7,8 @@ import { defineConfig } from 'vite';
 // https://vite.dev/config/
 export default defineConfig({
   plugins: [react(), tailwindcss()],
+  // The reference screenshots live in the repo-root screenshots/ folder.
+  server: { fs: { allow: ['..'] } },
   resolve: {
     alias: {
       '@': path.resolve(import.meta.dirname, './src'),

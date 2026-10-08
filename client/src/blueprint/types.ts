@@ -8,6 +8,8 @@ export type BlockType =
   | 'header' | 'title' | 'text' | 'input' | 'button' | 'image' | 'cards' | 'list'
   | 'calendar' | 'slots' | 'chart' | 'table' | 'chat' | 'map' | 'avatar' | 'tabbar' | 'upload';
 
+export type PageCategory = 'home' | 'about' | 'services' | 'service_detail' | 'contact' | 'error_404';
+
 export interface RunRequest {
   requirement: string;
   platform: Platform;
@@ -22,6 +24,7 @@ export interface Screen {
   persona: string;
   blocks: BlockType[];
   links_to: string[];
+  category?: PageCategory | null;
 }
 
 export interface LayoutNode {
@@ -41,12 +44,18 @@ export interface LayoutFrame {
   w: number;
   h: number;
   nodes: LayoutNode[];
+  category?: PageCategory | null;
+  /** Reference screenshot path inside screenshots/ ("<domain>/<file>"), shown instead of the blocks. */
+  screenshot?: string | null;
 }
 
 export interface Layout {
   device: 'mobile' | 'desktop';
   frames: LayoutFrame[];
   links: [string, string][];
+  reference_set?: string | null;
+  reference_name?: string;
+  reference_domain?: string;
 }
 
 export interface RoleLine {
@@ -89,10 +98,21 @@ export interface PublishResult {
   items_created: number;
 }
 
+export interface DomainMatch {
+  domain: string;
+  name: string;
+  reference_set: string;
+  score: number;
+  confidence: number;
+  matched: string[];
+  fallback: boolean;
+}
+
 export interface BlueprintRun {
   run_id: string;
   created_at: string;
   request: RunRequest;
+  domain?: DomainMatch | null;
   spec: {
     summary: string;
     personas: string[];

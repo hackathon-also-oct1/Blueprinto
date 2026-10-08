@@ -1,7 +1,7 @@
 """Assembles the agent chain that sits inside the Pipecat pipeline.
 
-    Orchestrator → Requirements Analyst → UX Architect → Wireframe Builder
-                 → Estimator → Publisher → Narrator
+    Orchestrator → Domain Classifier → Requirements Analyst → UX Architect
+                 → Wireframe Builder → Estimator → Publisher → Narrator
 
 Each arrow is a Pipecat frame hand-off: the ``BlueprintRunFrame`` moves down the
 pipeline, and every agent streams its status to the browser over RTVI.
@@ -12,6 +12,7 @@ from __future__ import annotations
 from pipecat.processors.frame_processor import FrameProcessor
 
 from blueprint.agents import (
+    DomainClassifier,
     Estimator,
     Narrator,
     Orchestrator,
@@ -34,6 +35,7 @@ def build_agent_chain(
     store = store or RunStore()
 
     agents = [
+        DomainClassifier(llm),
         RequirementsAnalyst(llm),
         UXArchitect(llm),
         WireframeBuilder(llm),

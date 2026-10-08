@@ -2,10 +2,14 @@
 
 Turns each screen's block list into absolutely positioned nodes inside a device
 frame. The same layout JSON feeds the client preview, Miro and the Figma plugin.
+Each frame also gets the reference screenshot for its page category (see
+blueprint/references.py); the client shows that screenshot instead of the blocks.
 """
 
 from blueprint.agents.base import AgentProcessor
+from blueprint.domain_classifier import classify_domain
 from blueprint.models import BlueprintRun, Layout, LayoutFrame, LayoutNode
+from blueprint.references import REFERENCE_SETS, screen_category, screenshot_file
 
 MOBILE = (390, 844)
 DESKTOP = (1280, 800)
@@ -39,6 +43,8 @@ def build_layout(run: BlueprintRun) -> Layout:
     assert run.flow is not None
     device = "desktop" if run.request.platform == "web" else "mobile"
     fw, fh = DESKTOP if device == "desktop" else MOBILE
+    # The Domain Classifier normally ran first; classify here too so this works on its own.
+    ref = (run.domain or classify_domain(run.request.requirement)).reference_set
     frames: list[LayoutFrame] = []
     for i, screen in enumerate(run.flow.screens):
         nodes: list[LayoutNode] = []
@@ -68,6 +74,7 @@ def build_layout(run: BlueprintRun) -> Layout:
                 )
             )
             y += h + SPACING
+        category = screen_category(screen)
         frames.append(
             LayoutFrame(
                 screen_id=screen.id,
@@ -77,13 +84,22 @@ def build_layout(run: BlueprintRun) -> Layout:
                 w=fw,
                 h=fh,
                 nodes=nodes,
+                category=category,
+                screenshot=screenshot_file(ref, category) if category else None,
             )
         )
     ids = {s.id for s in run.flow.screens}
     links = [(s.id, t) for s in run.flow.screens for t in s.links_to if t in ids and t != s.id]
     if not links:
         links = [(a.id, b.id) for a, b in zip(run.flow.screens, run.flow.screens[1:], strict=False)]
-    return Layout(device=device, frames=frames, links=links)
+    return Layout(
+        device=device,
+        frames=frames,
+        links=links,
+        reference_set=ref,
+        reference_name=REFERENCE_SETS[ref]["name"],
+        reference_domain=REFERENCE_SETS[ref]["domain"],
+    )
 
 
 class WireframeBuilder(AgentProcessor):
@@ -94,9 +110,14 @@ class WireframeBuilder(AgentProcessor):
     async def run(self, run: BlueprintRun) -> str:
         await self.mock_pause()
         run.layout = build_layout(run)
-        nodes = sum(len(f.nodes) for f in run.layout.frames)
+        layout = run.layout
+        nodes = sum(len(f.nodes) for f in layout.frames)
+        shots = [f for f in layout.frames if f.screenshot]
+        await self.log(run, f"Laid out {len(layout.frames)} {layout.device} frames, {nodes} blocks")
         await self.log(
-            run, f"Laid out {len(run.layout.frames)} {run.layout.device} frames, {nodes} blocks"
+            run,
+            f"Reference set {layout.reference_set} · {layout.reference_name}: "
+            f"{len(shots)} of {len(layout.frames)} screens use a reference screenshot",
         )
         # Send the wireframes early so the UI can draw them while estimation runs.
         await self.emit(

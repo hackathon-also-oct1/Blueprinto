@@ -40,6 +40,10 @@ BlockType = Literal[
 ]
 
 
+# Page categories that have a reference screenshot (see blueprint/references.py).
+PageCategory = Literal["home", "about", "services", "service_detail", "contact", "error_404"]
+
+
 class RoleRate(BaseModel):
     id: str
     name: str
@@ -65,6 +69,21 @@ class RunRequest(BaseModel):
     currency: str = "EUR"
     contingency_pct: float = 15
     rates: list[RoleRate] = Field(default_factory=lambda: [r.model_copy() for r in DEFAULT_RATES])
+
+
+# ---- Domain Classifier ----------------------------------------------------
+
+
+class DomainMatch(BaseModel):
+    """Which reference domain (screenshots/<domain>/) a requirement belongs to."""
+
+    domain: str
+    name: str
+    reference_set: str
+    score: int
+    confidence: float
+    matched: list[str] = Field(default_factory=list)
+    fallback: bool = False  # True when no rule scored high enough
 
 
 # ---- Requirements Analyst -------------------------------------------------
@@ -93,6 +112,7 @@ class Screen(BaseModel):
     persona: str = ""
     blocks: list[BlockType]
     links_to: list[str] = Field(default_factory=list)
+    category: PageCategory | None = None
 
 
 class UXFlow(BaseModel):
@@ -119,12 +139,18 @@ class LayoutFrame(BaseModel):
     w: int
     h: int
     nodes: list[LayoutNode]
+    category: PageCategory | None = None
+    # Reference screenshot path inside screenshots/ ("<domain>/<file>"), shown instead of the blocks.
+    screenshot: str | None = None
 
 
 class Layout(BaseModel):
     device: Literal["mobile", "desktop"]
     frames: list[LayoutFrame]
     links: list[tuple[str, str]]
+    reference_set: str | None = None
+    reference_name: str = ""
+    reference_domain: str = ""
 
 
 # ---- Estimator ------------------------------------------------------------
@@ -187,6 +213,7 @@ class BlueprintRun(BaseModel):
     run_id: str = Field(default_factory=lambda: "run-" + uuid.uuid4().hex[:8])
     created_at: str = Field(default_factory=lambda: datetime.now(UTC).isoformat())
     request: RunRequest
+    domain: DomainMatch | None = None
     spec: RequirementSpec | None = None
     flow: UXFlow | None = None
     layout: Layout | None = None

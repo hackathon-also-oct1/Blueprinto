@@ -1,6 +1,16 @@
-import type { Layout, LayoutFrame, LayoutNode, Screen } from '../types';
+import { screenshotUrl } from '../references';
+import type { Layout, LayoutFrame, LayoutNode, PageCategory, Screen } from '../types';
 
 const PREVIEW_WIDTH = { mobile: 168, desktop: 360 };
+
+const CATEGORY_LABEL: Record<PageCategory, string> = {
+  home: 'Home page',
+  about: 'About us',
+  services: 'Services',
+  service_detail: 'Detail',
+  contact: 'Contact',
+  error_404: 'Error 404',
+};
 
 function Block({ node, scale }: { node: LayoutNode; scale: number }) {
   const style = {
@@ -75,6 +85,22 @@ function Block({ node, scale }: { node: LayoutNode; scale: number }) {
 }
 
 function Frame({ frame, device, index }: { frame: LayoutFrame; device: Layout['device']; index: number }) {
+  const shot = screenshotUrl(frame.screenshot);
+  if (shot && frame.category) {
+    // Reference screenshots are desktop captures, so they use the desktop preview width.
+    return (
+      <figure className="wf-screen">
+        <a className="wf-frame wf-desktop wf-shot" href={shot} target="_blank" rel="noreferrer"
+          style={{ width: PREVIEW_WIDTH.desktop }}>
+          <img src={shot} alt={`${frame.name}: reference design (${CATEGORY_LABEL[frame.category]})`} loading="lazy" />
+        </a>
+        <figcaption>
+          {frame.name}
+          <small>{String(index + 1).padStart(2, '0')} · {CATEGORY_LABEL[frame.category]} reference</small>
+        </figcaption>
+      </figure>
+    );
+  }
   const width = PREVIEW_WIDTH[device];
   const scale = width / frame.w;
   return (
@@ -119,6 +145,9 @@ export function Wireframes({
     <div>
       <span className="label">
         User flow · {layout.frames.length} screens · {layout.device}
+        {layout.reference_set
+          ? ` · domain ${layout.reference_domain} · reference ${layout.reference_set} (${layout.reference_name})`
+          : ''}
         {personas.length ? ` · personas: ${personas.join(', ')}` : ''}
       </span>
       <div className="wf-flow">
