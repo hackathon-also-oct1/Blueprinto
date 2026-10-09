@@ -70,7 +70,7 @@ def _mentions(text: str, words: list[str]) -> bool:
 
 
 # What each category's screen holds. Flows only use these categories, so every
-# screen has a reference screenshot; blocks still feed the estimate and Miro/Figma.
+# screen has a reference screenshot; blocks still feed the estimate.
 CATEGORY_RECIPES: dict[PageCategory, dict] = {
     "home": {
         "name": "Home",

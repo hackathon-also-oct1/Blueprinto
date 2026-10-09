@@ -4,7 +4,7 @@ from dataclasses import dataclass
 
 from pipecat.frames.frames import DataFrame
 
-from blueprint.models import BlueprintRun, PublishTarget, RunRequest
+from blueprint.models import BlueprintRun, RunRequest
 
 
 @dataclass
@@ -20,10 +20,3 @@ class BlueprintRunFrame(DataFrame):
 
     run: BlueprintRun
 
-
-@dataclass
-class PublishRequestFrame(DataFrame):
-    """Asks the Publisher agent to publish an existing run."""
-
-    run_id: str
-    target: PublishTarget

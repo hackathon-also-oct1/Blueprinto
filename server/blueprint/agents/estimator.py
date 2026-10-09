@@ -168,5 +168,5 @@ class Estimator(AgentProcessor):
             run,
             f"Estimate: {est.currency} {est.total:,.0f} · {est.weeks} weeks · {est.people} people",
         )
-        await self.log(run, "Hand-off → Publisher")
+        await self.log(run, "Hand-off → Narrator")
         return f"{est.currency} {est.total:,.0f} · {est.weeks} wks"

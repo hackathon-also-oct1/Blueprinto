@@ -26,7 +26,7 @@ const LAYERS = [
     title: 'Data & ops',
     items: [
       ['Azure Cosmos DB', 'run history and past estimates'],
-      ['Azure Key Vault', 'Miro and Azure secrets'],
+      ['Azure Key Vault', 'Azure OpenAI and speech keys'],
       ['Application Insights', 'logs and traces'],
     ],
   },
@@ -49,7 +49,7 @@ export function ArchitecturePanel() {
   ▲                                   │ BlueprintRunFrame
   │                                   ▼
   │            Requirements Analyst → UX Architect → Wireframe Builder
-  │                                   → Estimator → Publisher → Narrator
+  │                                   → Narrator
   │                                                              │
   └──── RTVI server messages (status, logs, results) ◀───────────┤
                       Azure TTS → avatar → WebRTC audio/video ◀──┘`}</pre>

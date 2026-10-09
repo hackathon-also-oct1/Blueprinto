@@ -8,17 +8,15 @@
 """Blueprint Studio bot.
 
 The user gives a requirement by talking to the presenter, or by typing it in the
-browser (sent as an RTVI client message). Inside this Pipecat pipeline six agent
-processors turn it into a UX flow, wireframes, a budget/timeline/team estimate,
-and a Miro or Figma board. Every agent streams its status back to the browser as
-RTVI server messages.
+browser (sent as an RTVI client message). Inside this Pipecat pipeline five agent
+processors turn it into a UX flow and wireframes. Every agent streams its status
+back to the browser as RTVI server messages.
 
 Pipeline::
 
     transport.input()
       → SLNG STT → user context → Azure OpenAI voice agent     (with SLNG + Azure keys)
-      → Orchestrator → Requirements Analyst → UX Architect → Wireframe Builder
-      → Estimator → Publisher → Narrator
+      → Orchestrator → Requirements Analyst → UX Architect → Wireframe Builder → Narrator
       → SLNG or Azure TTS (optional) → video avatar (optional)
       → transport.output() → assistant context
 
@@ -49,6 +47,7 @@ from blueprint.avatar import (
 from blueprint.azure_llm import AgentLLM
 from blueprint.conversation import (
     GREETING,
+    Greeter,
     build_stt,
     build_voice_agent,
     conversation_enabled,
@@ -59,8 +58,13 @@ from blueprint.storage import RunStore
 
 load_dotenv(override=True)
 
-# One store per server process, shared by sessions so a run can be published later.
+# One store per server process, shared by sessions; the Narrator saves every run to it.
 STORE = RunStore()
+
+# With a video presenter, the opening line waits until the client says its video is
+# showing (a ``presenter_ready`` message), so the visitor hears Nuno only once they can
+# see him. A client that never says so is still greeted after this many seconds.
+GREET_FALLBACK_SECS = 12
 
 
 def build_tts():
@@ -123,6 +127,23 @@ async def run_bot(transport: BaseTransport, runner_args: RunnerArguments) -> Non
     runner = WorkerRunner(handle_sigint=runner_args.handle_sigint)
     await runner.add_workers(worker)
 
+    async def say_opening_line() -> None:
+        await worker.queue_frames(
+            [
+                LLMMessagesAppendFrame(
+                    messages=[{"role": "developer", "content": GREETING}], run_llm=True
+                )
+            ]
+        )
+
+    # The opening line, once per session: when the client shows the presenter's video,
+    # or right away when there is no video to wait for (see Greeter).
+    greeter = Greeter(
+        say_opening_line, wait_for_video=avatar is not None, fallback_secs=GREET_FALLBACK_SECS
+    )
+    if avatar is not None:
+        avatar.on_unavailable = greeter.avatar_unavailable
+
     @worker.rtvi.event_handler("on_client_ready")
     async def on_client_ready(rtvi):
         await rtvi.send_server_message(
@@ -135,17 +156,18 @@ async def run_bot(transport: BaseTransport, runner_args: RunnerArguments) -> Non
             }
         )
         if converse:
-            await worker.queue_frames(
-                [
-                    LLMMessagesAppendFrame(
-                        messages=[{"role": "developer", "content": GREETING}], run_llm=True
-                    )
-                ]
-            )
+            await greeter.client_ready()
+
+    @worker.rtvi.event_handler("on_client_message")
+    async def on_client_message(rtvi, message):
+        # The client's video is playing: the presenter can say hello.
+        if message.type == "presenter_ready":
+            await greeter.presenter_ready()
 
     @transport.event_handler("on_client_disconnected")
     async def on_client_disconnected(transport, client):
         logger.info("Client disconnected")
+        greeter.cancel()
         await runner.cancel()
 
     await runner.run()
@@ -170,6 +192,13 @@ async def bot(runner_args: RunnerArguments):
 
 
 if __name__ == "__main__":
+    import sys
+
     from pipecat.runner.run import main
+
+    # The runner's banner uses box-drawing characters. When output is piped (as under
+    # `npm run dev`) Windows falls back to cp1252, which cannot encode them.
+    for stream in (sys.stdout, sys.stderr):
+        stream.reconfigure(encoding="utf-8", errors="replace")
 
     main()

@@ -14,7 +14,6 @@ from typing import Literal
 from pydantic import BaseModel, Field
 
 Platform = Literal["web", "mobile", "both"]
-PublishTarget = Literal["miro", "figma"]
 Complexity = Literal["S", "M", "L"]
 
 # Wireframe building blocks the UX Architect may use. The Wireframe Builder and
@@ -64,8 +63,7 @@ class RunRequest(BaseModel):
     """What the client sends with the ``run_blueprint`` message."""
 
     requirement: str = Field(min_length=10, max_length=8000)
-    platform: Platform = "both"
-    target: PublishTarget = "miro"
+    platform: Platform = "web"  # the consultancy plans websites
     currency: str = "EUR"
     contingency_pct: float = 15
     rates: list[RoleRate] = Field(default_factory=lambda: [r.model_copy() for r in DEFAULT_RATES])
@@ -210,17 +208,6 @@ class Estimate(BaseModel):
     assumptions: list[str] = Field(default_factory=list)
 
 
-# ---- Publisher ------------------------------------------------------------
-
-
-class PublishResult(BaseModel):
-    target: PublishTarget
-    status: Literal["prepared", "published", "dry_run", "failed"]
-    url: str | None = None
-    detail: str = ""
-    items_created: int = 0
-
-
 # ---- The run --------------------------------------------------------------
 
 
@@ -233,6 +220,5 @@ class BlueprintRun(BaseModel):
     flow: UXFlow | None = None
     layout: Layout | None = None
     estimate: Estimate | None = None
-    publish: PublishResult | None = None
     error: str | None = None
     tokens: int = 0

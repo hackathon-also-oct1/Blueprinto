@@ -1,7 +1,10 @@
 """Assembles the agent chain that sits inside the Pipecat pipeline.
 
     Orchestrator → Domain Classifier → [Requirements Analyst ∥ UX Architect]
-                 → Wireframe Builder → Estimator → Publisher → Narrator
+                 → Wireframe Builder → Narrator
+
+The Estimator (blueprint.agents.estimator) is not in the chain: the client states
+their budget in the intake, so no budget is calculated.
 
 The Requirements Analyst and the UX Architect run at the same time: the flow is
 built from the requirement and its domain, so it does not wait for the spec.
@@ -16,10 +19,8 @@ from pipecat.processors.frame_processor import FrameProcessor
 
 from blueprint.agents import (
     DomainClassifier,
-    Estimator,
     Narrator,
     Orchestrator,
-    Publisher,
     RequirementsAnalyst,
     UXArchitect,
     WireframeBuilder,
@@ -43,8 +44,6 @@ def build_agent_chain(
         RequirementsAnalyst(llm),
         UXArchitect(llm),
         WireframeBuilder(llm),
-        Estimator(llm),
-        Publisher(llm, store),
     ]
     roster = [
         {"id": Orchestrator.agent_id, "title": Orchestrator.title, "service": Orchestrator.service}

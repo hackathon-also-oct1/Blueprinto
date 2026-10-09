@@ -12,6 +12,7 @@ from pipecat.frames.frames import Frame, LLMMessagesAppendFrame, TTSSpeakFrame
 from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
 from pipecat.processors.frameworks.rtvi import RTVIServerMessageFrame
 
+from blueprint.agents.estimator import compute_estimate
 from blueprint.frames import BlueprintRunFrame
 from blueprint.models import BlueprintRun
 from blueprint.storage import RunStore
@@ -27,7 +28,6 @@ def spoken_summary(run: BlueprintRun) -> str:
         f"Your blueprint is ready. I designed {screens} screens. "
         f"Building it should take about {est.weeks} weeks with a team of {est.people}, "
         f"for roughly {thousands} thousand {'euros' if est.currency == 'EUR' else est.currency}. "
-        f"The wireframes are ready to publish to {run.request.target.title()}."
     )
 
 
@@ -53,9 +53,7 @@ def result_brief(run: BlueprintRun) -> str:
     return (
         "The blueprint run finished and the results are on screen.\n"
         + "\n".join(facts)
-        + "\nTell the user it is ready in two or three short sentences: number of screens, "
-        f"budget, timeline and team. Mention they can publish it to {run.request.target.title()} "
-        "with the Publish button."
+        + "\nTell the user it is ready in one or two short sentences, with the number of pages."
     )
 
 
@@ -84,9 +82,16 @@ class Narrator(FrameProcessor):
                         }
                     )
                 )
+            # Figures for the wireframes tab only. run.estimate stays empty, so the
+            # budget is not spoken and not part of the run.
+            kpis = compute_estimate(run, {}, []) if run.flow and run.error is None else None
             await self.push_frame(
                 RTVIServerMessageFrame(
-                    data={"type": "run_result", "run": run.model_dump(mode="json")}
+                    data={
+                        "type": "run_result",
+                        "run": run.model_dump(mode="json"),
+                        "kpis": kpis.model_dump(mode="json") if kpis else None,
+                    }
                 )
             )
             if self.converse:

@@ -6,10 +6,9 @@ import type {
   AgentInfo,
   AgentState,
   BlueprintRun,
+  Estimate,
   Layout,
   LogLine,
-  PublishResult,
-  PublishTarget,
   RunRequest,
   Screen,
   ServerMessage,
@@ -22,8 +21,6 @@ export const DEFAULT_AGENTS: AgentInfo[] = [
   { id: 'req', title: 'Requirements Analyst', service: 'Azure OpenAI · structured output' },
   { id: 'ux', title: 'UX Architect', service: 'Azure OpenAI · pattern library' },
   { id: 'wf', title: 'Wireframe Builder', service: 'Layout engine · 390×844 / 1280×800 frames' },
-  { id: 'est', title: 'Estimator', service: 'Azure OpenAI · Cosmos DB history' },
-  { id: 'pub', title: 'Publisher', service: 'Miro REST API · Figma plugin' },
 ];
 
 export interface BlueprintState {
@@ -39,9 +36,8 @@ export interface BlueprintState {
   screens: Screen[];
   layout: Layout | null;
   run: BlueprintRun | null;
-  publish: PublishResult | null;
-  publishing: boolean;
-  figmaPayload: unknown;
+  /** Budget, timeline and team shown above the wireframes. */
+  kpis: Estimate | null;
   error: string | null;
 }
 
@@ -59,25 +55,19 @@ const initial: BlueprintState = {
   screens: [],
   layout: null,
   run: null,
-  publish: null,
-  publishing: false,
-  figmaPayload: null,
+  kpis: null,
   error: null,
 };
 
 type Action =
   | { type: 'message'; msg: ServerMessage }
-  | { type: 'run_requested' }
-  | { type: 'publish_requested' };
+  | { type: 'run_requested' };
 
 const now = () => new Date().toTimeString().slice(0, 8);
 
 function reducer(state: BlueprintState, action: Action): BlueprintState {
   if (action.type === 'run_requested') {
-    return { ...state, running: true, error: null, log: [], publish: null, figmaPayload: null };
-  }
-  if (action.type === 'publish_requested') {
-    return { ...state, publishing: true };
+    return { ...state, running: true, error: null, log: [] };
   }
 
   const msg = action.msg;
@@ -103,12 +93,11 @@ function reducer(state: BlueprintState, action: Action): BlueprintState {
         // A run the presenter started never went through run_requested, so reset here too.
         error: null,
         log: [],
-        publish: null,
-        figmaPayload: null,
         agents: idle(msg.agents),
         screens: [],
         layout: null,
         run: null,
+        kpis: null,
       };
     case 'agent_status':
       return {
@@ -137,20 +126,13 @@ function reducer(state: BlueprintState, action: Action): BlueprintState {
         ...state,
         running: false,
         run: msg.run,
+        kpis: msg.kpis ?? null,
         screens: msg.run.flow?.screens ?? state.screens,
         layout: msg.run.layout ?? state.layout,
-        publish: msg.run.publish,
         error: msg.run.error,
       };
     case 'run_error':
       return { ...state, running: false, error: msg.error };
-    case 'publish_result':
-      return {
-        ...state,
-        publishing: false,
-        publish: msg.publish,
-        figmaPayload: msg.figma_payload ?? state.figmaPayload,
-      };
     default:
       return state;
   }
@@ -174,14 +156,8 @@ export function useBlueprint() {
     [client],
   );
 
-  const publish = useCallback(
-    (target: PublishTarget) => {
-      if (!client || !state.runId) return;
-      dispatch({ type: 'publish_requested' });
-      client.sendClientMessage('publish', { run_id: state.runId, target });
-    },
-    [client, state.runId],
-  );
-
-  return { state, run, publish };
+  return { state, run };
 }
+
+/** What `useBlueprint` returns; the studio takes it as a prop so the session outlives the page. */
+export type Blueprint = ReturnType<typeof useBlueprint>;

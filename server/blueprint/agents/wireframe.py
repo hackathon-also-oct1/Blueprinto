@@ -1,7 +1,7 @@
 """Wireframe Builder: deterministic layout engine (no LLM needed).
 
 Turns each screen's block list into absolutely positioned nodes inside a device
-frame. The same layout JSON feeds the client preview, Miro and the Figma plugin.
+frame. The same layout JSON feeds the client preview.
 Each frame also gets the reference screenshot for its page category (see
 blueprint/references.py); the client shows that screenshot instead of the blocks.
 """

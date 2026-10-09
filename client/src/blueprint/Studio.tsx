@@ -1,62 +1,67 @@
-import { PipecatClientAudio, usePipecatClientTransportState } from '@pipecat-ai/client-react';
-import { useEffect, useState } from 'react';
+import { usePipecatClientTransportState } from '@pipecat-ai/client-react';
+import { useState } from 'react';
 
 import { AgentTimeline } from './components/AgentTimeline';
 import { ArchitecturePanel } from './components/ArchitecturePanel';
 import { AvatarPanel } from './components/AvatarPanel';
-import { EstimatePanel, KpiRow } from './components/EstimatePanel';
-import { MiroBoard } from './components/MiroBoard';
-import { PublishPanel } from './components/PublishPanel';
+import { ConversationPanel } from './components/ConversationPanel';
+import { KpiRow } from './components/EstimatePanel';
 import { Wireframes } from './components/Wireframes';
-import type { Platform, PublishTarget } from './types';
-import { useBlueprint } from './useBlueprint';
+import type { Blueprint } from './useBlueprint';
+import type { ChatMessage } from './useConversation';
 
-const SAMPLE =
-  'A booking app for a physiotherapy clinic. Patients sign in, browse therapists, book and pay for appointments, get SMS reminders, and chat with the clinic. Admins see a dashboard with revenue and utilization reports.';
-
-type Tab = 'wf' | 'est' | 'pub' | 'arch';
+type Tab = 'wf' | 'arch';
 const TABS: [Tab, string][] = [
   ['wf', 'Wireframes'],
-  ['est', 'Budget & team'],
-  ['pub', 'Publish'],
   ['arch', 'Microsoft architecture'],
 ];
 
-export function Studio({ connect, disconnect, error }: {
+/** The agent orchestration page: presenter and brief on the left, the agent run in the middle, deliverables on the right. */
+export function Studio({ blueprint, messages, draft, manual: typed, connect, disconnect, error, onBack }: {
+  blueprint: Blueprint;
+  messages: ChatMessage[];
+  /** A brief carried over from the site, e.g. a sentence typed on the landing page. */
+  draft: string;
+  /** Start with the brief form rather than the conversation. */
+  manual: boolean;
   connect: () => Promise<void>;
   disconnect: () => Promise<void>;
   error: string | null;
+  onBack: () => void;
 }) {
   const transport = usePipecatClientTransportState();
   const connected = transport === 'ready' || transport === 'connected';
   const connecting = ['initializing', 'authenticating', 'authenticated', 'connecting'].includes(transport);
-  const { state, run, publish } = useBlueprint();
+  const { state, run } = blueprint;
 
-  const [requirement, setRequirement] = useState(SAMPLE);
-  const [platform, setPlatform] = useState<Platform>('both');
-  const [target, setTarget] = useState<PublishTarget>('miro');
+  const [requirement, setRequirement] = useState(draft);
   const [tab, setTab] = useState<Tab>('wf');
 
-  const estimate = state.run?.estimate ?? null;
+  // With the voice agent on, the left pane is a chat until "build it" produces a
+  // requirement (or the user chooses to type one); then the requirement takes its place.
+  const [manual, setManual] = useState(typed);
+  const showChat = !!state.session?.conversation && !state.requirement && !manual;
 
-  // A run started by voice: show what the presenter understood, and the wireframes tab.
-  useEffect(() => {
-    if (!state.runId || !state.requirement) return;
-    setRequirement(state.requirement);
+  // A run started by voice: show what the presenter understood, on the wireframes tab.
+  const [seenRun, setSeenRun] = useState<string | null>(null);
+  if (state.runId && state.runId !== seenRun) {
+    setSeenRun(state.runId);
+    if (state.requirement) setRequirement(state.requirement);
     setTab('wf');
-  }, [state.runId, state.requirement]);
+  }
 
   const onRun = () => {
     setTab('wf');
-    run({ requirement, platform, target, currency: 'EUR' });
+    run({ requirement, platform: 'web', currency: 'EUR' });
   };
 
   return (
     <div className="studio">
       <header className="top">
         <div>
+          <button type="button" className="crumb" onClick={onBack}>← Back to the site</button>
           <h1>Blueprinto</h1>
-          <p>Describe the website you have in mind, by voice or by typing. Blueprinto sketches the pages for you, estimates the budget, timeline and team you need, and can share the result to Miro or Figma.</p>
+          <p>Describe the website you have in mind, by voice or by typing. Blueprinto sketches the pages for you.</p>
         </div>
         <div className="row center">
           {state.session?.mock && <span className="badge warn">Mock mode · no Azure OpenAI key</span>}
@@ -71,37 +76,30 @@ export function Studio({ connect, disconnect, error }: {
 
       <main className="grid">
         <section className="pane stack" aria-label="Requirement">
-          <div>
-            <label className="label" htmlFor="req">Requirement</label>
-            <textarea id="req" value={requirement} onChange={(e) => setRequirement(e.target.value)} />
-          </div>
-          <label className="field">
-            <span>Platform</span>
-            <select id="platform" value={platform} onChange={(e) => setPlatform(e.target.value as Platform)}>
-              <option value="web">Web (TypeScript SPA)</option>
-              <option value="mobile">Mobile</option>
-              <option value="both">Web + mobile</option>
-            </select>
-          </label>
-          <div>
-            <span className="label">Publish to</span>
-            <div className="seg" role="group" aria-label="Publish target">
-              {(['miro', 'figma'] as const).map((t) => (
-                <button key={t} type="button" aria-pressed={target === t} onClick={() => setTarget(t)}>
-                  {t === 'miro' ? 'Miro' : 'Figma'}
-                </button>
-              ))}
-            </div>
-          </div>
-          <button className="btn" onClick={onRun} disabled={!connected || state.running || requirement.trim().length < 10}>
-            {state.running ? 'Agents working…' : connected ? 'Run agents' : 'Connect to run'}
-          </button>
           <AvatarPanel
             enabled={!!state.session?.avatar}
             voice={!!state.session?.voice}
             conversation={!!state.session?.conversation}
             issue={state.avatarIssue}
           />
+          {showChat ? (
+            <ConversationPanel messages={messages} onType={() => setManual(true)} />
+          ) : (
+            <>
+              <div>
+                <label className="label" htmlFor="req">Requirement</label>
+                <textarea
+                  id="req"
+                  value={requirement}
+                  placeholder="Filled in when the presenter has your brief. You can also type one here."
+                  onChange={(e) => setRequirement(e.target.value)}
+                />
+              </div>
+              <button className="btn" onClick={onRun} disabled={!connected || state.running || requirement.trim().length < 10}>
+                {state.running ? 'Agents working…' : connected ? 'Run agents' : 'Connect to run'}
+              </button>
+            </>
+          )}
         </section>
 
         <AgentTimeline agents={state.agents} log={state.log} runId={state.runId} />
@@ -116,31 +114,13 @@ export function Studio({ connect, disconnect, error }: {
           </div>
           {tab === 'wf' && (
             <>
-              {estimate && state.layout && <KpiRow est={estimate} screens={state.layout.frames.length} />}
+              {state.kpis && state.layout && <KpiRow est={state.kpis} screens={state.layout.frames.length} />}
               <Wireframes layout={state.layout} screens={state.screens} running={state.running} />
-              <MiroBoard
-                ready={!!state.run?.layout}
-                publish={state.publish}
-                publishing={state.publishing}
-                onPublish={publish}
-              />
             </>
-          )}
-          {tab === 'est' && <EstimatePanel est={estimate} />}
-          {tab === 'pub' && (
-            <PublishPanel
-              run={state.run}
-              target={target}
-              publish={state.publish}
-              publishing={state.publishing}
-              figmaPayload={state.figmaPayload}
-              onPublish={publish}
-            />
           )}
           {tab === 'arch' && <ArchitecturePanel />}
         </section>
       </main>
-      <PipecatClientAudio />
     </div>
   );
 }

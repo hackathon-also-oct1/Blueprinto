@@ -1,4 +1,4 @@
-import { PipecatClientVideo, usePipecatClientMicControl } from '@pipecat-ai/client-react';
+import { PipecatClientVideo, usePipecatClient, usePipecatClientMicControl } from '@pipecat-ai/client-react';
 
 /** The presenter: the bot's video track (with AVATAR_PROVIDER set) and the mic for talking to it. */
 export function AvatarPanel({ enabled, voice, conversation, issue }: {
@@ -8,11 +8,20 @@ export function AvatarPanel({ enabled, voice, conversation, issue }: {
   issue: string | null;
 }) {
   const { enableMic, isMicEnabled } = usePipecatClientMicControl();
+  const client = usePipecatClient();
 
   return (
     <div className={enabled ? 'avatar' : 'avatar-off'}>
       <span className="label">Presenter</span>
-      {enabled && <PipecatClientVideo participant="bot" fit="cover" className="avatar-video" />}
+      {enabled && (
+        <PipecatClientVideo
+          participant="bot"
+          fit="cover"
+          className="avatar-video"
+          // The presenter greets once its video is showing (see server/bot.py).
+          onPlaying={() => client?.sendClientMessage('presenter_ready')}
+        />
+      )}
       {issue && (
         <p className="hint">
           Video presenter unavailable, voice only. {issue.includes('concurrent_session_limit')
@@ -24,7 +33,7 @@ export function AvatarPanel({ enabled, voice, conversation, issue }: {
         <>
           <p className="hint">
             {isMicEnabled
-              ? 'Listening. Tell the presenter what you want to build, and it starts the agents.'
+              ? 'Listening. Answer Nuno\'s questions, then say "build it" to start the agents.'
               : 'Microphone is off. Turn it on to talk to the presenter.'}
           </p>
           <button className="btn ghost" aria-pressed={isMicEnabled} onClick={() => enableMic(!isMicEnabled)}>

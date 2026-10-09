@@ -1,7 +1,6 @@
 /** Types mirroring server/blueprint/models.py and the RTVI server messages. */
 
 export type Platform = 'web' | 'mobile' | 'both';
-export type PublishTarget = 'miro' | 'figma';
 export type AgentStatus = 'idle' | 'working' | 'done' | 'error';
 
 export type BlockType =
@@ -13,7 +12,6 @@ export type PageCategory = 'home' | 'about' | 'services' | 'service_detail' | 'c
 export interface RunRequest {
   requirement: string;
   platform: Platform;
-  target: PublishTarget;
   currency: string;
 }
 
@@ -90,14 +88,6 @@ export interface Estimate {
   assumptions: string[];
 }
 
-export interface PublishResult {
-  target: PublishTarget;
-  status: 'prepared' | 'published' | 'dry_run' | 'failed';
-  url?: string | null;
-  detail: string;
-  items_created: number;
-}
-
 export interface DomainMatch {
   domain: string;
   name: string;
@@ -122,7 +112,6 @@ export interface BlueprintRun {
   flow: { screens: Screen[] } | null;
   layout: Layout | null;
   estimate: Estimate | null;
-  publish: PublishResult | null;
   error: string | null;
   tokens: number;
 }
@@ -162,11 +151,5 @@ export type ServerMessage =
     }
   | { type: 'agent_log'; run_id: string; agent: string; message: string }
   | { type: 'wireframes'; run_id: string; flow: { screens: Screen[] }; layout: Layout }
-  | { type: 'run_result'; run: BlueprintRun }
-  | { type: 'run_error'; run_id: string | null; error: string }
-  | {
-      type: 'publish_result';
-      run_id: string;
-      publish: PublishResult;
-      figma_payload?: unknown;
-    };
+  | { type: 'run_result'; run: BlueprintRun; kpis?: Estimate | null }
+  | { type: 'run_error'; run_id: string | null; error: string };

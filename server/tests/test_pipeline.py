@@ -32,9 +32,8 @@ def messages(frames):
 
 
 @pytest.mark.asyncio
-async def test_full_run_and_publish(tmp_path):
+async def test_full_run(tmp_path):
     os.environ["RUNS_DIR"] = str(tmp_path)
-    os.environ.pop("MIRO_ACCESS_TOKEN", None)
     store = RunStore()
     chain = Pipeline(build_agent_chain(AgentLLM(), store))
 
@@ -42,7 +41,7 @@ async def test_full_run_and_publish(tmp_path):
         chain,
         frames_to_send=[
             RTVIClientMessageFrame(
-                msg_id="1", type="run_blueprint", data={"requirement": REQ, "target": "miro"}
+                msg_id="1", type="run_blueprint", data={"requirement": REQ}
             ),
             SleepFrame(sleep=8),
         ],
@@ -51,7 +50,10 @@ async def test_full_run_and_publish(tmp_path):
     types = [m["type"] for m in msgs]
     assert types[0] == "run_started"
     assert "wireframes" in types
-    result = next(m for m in msgs if m["type"] == "run_result")["run"]
+    final = next(m for m in msgs if m["type"] == "run_result")
+    result = final["run"]
+    # The wireframes tab still shows budget, weeks and team; they are not part of the run.
+    assert final["kpis"]["total"] > 0 and final["kpis"]["weeks"] > 0
     assert result["error"] is None
     screens = result["flow"]["screens"]
     # Only pages with a reference screenshot: one per page category.
@@ -64,29 +66,13 @@ async def test_full_run_and_publish(tmp_path):
         "error_404",
     ]
     assert all(f["screenshot"] for f in result["layout"]["frames"])
-    assert result["estimate"]["total"] > 0
+    assert result["estimate"] is None  # the client states the budget; none is calculated
     # The Requirements Analyst and the UX Architect run at the same time.
     steps = [(m["agent"], m["status"]) for m in msgs if m["type"] == "agent_status"]
     started = max(steps.index(("req", "working")), steps.index(("ux", "working")))
     assert started < min(steps.index(("req", "done")), steps.index(("ux", "done")))
     done = {m["agent"] for m in msgs if m["type"] == "agent_status" and m["status"] == "done"}
-    assert done == {"orch", "dom", "req", "ux", "wf", "est", "pub"}
-
-    run_id = result["run_id"]
-    for target, expected in (("miro", "dry_run"), ("figma", "prepared")):
-        down, _ = await run_test(
-            Pipeline(build_agent_chain(AgentLLM(), store)),
-            frames_to_send=[
-                RTVIClientMessageFrame(
-                    msg_id="2", type="publish", data={"run_id": run_id, "target": target}
-                ),
-                SleepFrame(sleep=0.5),
-            ],
-        )
-        pub = next(m for m in messages(down) if m["type"] == "publish_result")
-        assert pub["publish"]["status"] == expected
-        if target == "figma":
-            assert len(pub["figma_payload"]["frames"]) == len(result["flow"]["screens"])
+    assert done == {"orch", "dom", "req", "ux", "wf"}
 
 
 def test_estimate_scales_with_platform():

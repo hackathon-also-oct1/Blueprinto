@@ -3,7 +3,6 @@
 Client → server messages (sent with ``client.sendClientMessage(type, data)``):
 
 * ``run_blueprint``  data = RunRequest fields
-* ``publish``        data = {"run_id": str, "target": "miro" | "figma"}
 
 The voice agent starts a run the same way, with a ``StartBlueprintFrame``.
 """
@@ -16,7 +15,7 @@ from pipecat.processors.frame_processor import FrameDirection, FrameProcessor
 from pipecat.processors.frameworks.rtvi import RTVIClientMessageFrame, RTVIServerMessageFrame
 from pydantic import ValidationError
 
-from blueprint.frames import BlueprintRunFrame, PublishRequestFrame, StartBlueprintFrame
+from blueprint.frames import BlueprintRunFrame, StartBlueprintFrame
 from blueprint.models import BlueprintRun, RunRequest
 
 
@@ -88,13 +87,6 @@ class Orchestrator(FrameProcessor):
                 await self._emit({"type": "run_error", "run_id": None, "error": str(e)})
                 return
             await self._start_run(request)
-
-        elif frame.type == "publish":
-            run_id = str(data.get("run_id", ""))
-            target = data.get("target", "miro")
-            if target not in ("miro", "figma"):
-                target = "miro"
-            await self.push_frame(PublishRequestFrame(run_id=run_id, target=target))
 
         else:
             logger.debug(f"Ignoring client message type {frame.type!r}")
